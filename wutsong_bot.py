@@ -110,7 +110,7 @@ async def wutsong(ctx, *, query):
 
 @bot.command(name="wutlyrics")
 async def wutlyrics(ctx, *, query=None):
-    await ctx.trigger_typing()
+    async with ctx.typing():
     try:
         await ctx.send("🔍 Searching for lyrics...")
 

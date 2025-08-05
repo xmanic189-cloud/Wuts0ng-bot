@@ -161,8 +161,7 @@ async def wutguess(ctx, *, hint):
             max_tokens=100
         )
         guess = response.choices[0].message.content.strip()
-        await ctx.send(f"🎯 I think you're thinking of:
-{guess}")
+        await ctx.send(f"🎯 I think you're thinking of: {guess}")
     except Exception as e:
         print(f"Error in !wutguess: {e}")
         await ctx.send("⚠️ Couldn't guess the song. Try a different hint!")

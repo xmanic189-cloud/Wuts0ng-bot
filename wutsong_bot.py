@@ -111,8 +111,8 @@ async def wutsong(ctx, *, query):
 @bot.command(name="wutlyrics")
 async def wutlyrics(ctx, *, query=None):
     async with ctx.typing():
-    try:
-        await ctx.send("🔍 Searching for lyrics...")
+        try:
+            await ctx.send("🔍 Searching for lyrics...")
 
         if not query:
             if ctx.author.id in user_last_song:

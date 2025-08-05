@@ -140,7 +140,7 @@ async def wutlyrics(ctx, *, query=None):
             else:
                 await ctx.send(f"📝 **Lyrics for:** `{title}`
 
-{lyrics}")
+{lyrics}"){lyrics}")
 
         except Exception as e:
             print(f"Error in !wutlyrics: {e}")

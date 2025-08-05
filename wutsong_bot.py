@@ -4,15 +4,15 @@ import requests
 import os
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup
-import openai
+import cohere
 
 load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 GENIUS_TOKEN = os.getenv("GENIUS_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+COHERE_API_KEY = os.getenv("COHERE_API_KEY")
 
-openai.api_key = OPENAI_API_KEY
+co = cohere.Client(COHERE_API_KEY)
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -152,18 +152,26 @@ async def wutlyrics(ctx, *, query=None):
 async def wutguess(ctx, *, hint):
     await ctx.send("🧠 Thinking really hard...")
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a music expert. Given a vague hint or lyric, guess the most likely song name and artist."},
-                {"role": "user", "content": hint}
-            ],
-            max_tokens=100
+        prompt = (
+            "You're a music expert. Given the following vague hint or description, guess the most likely song title and artist.\n"
+            f"Hint: {hint}\n"
+            "Answer in this format: Song Title by Artist Name."
         )
-        guess = response.choices[0].message.content.strip()
-        await ctx.send(f"🎯 I think you're thinking of: {guess}")
+
+        response = co.generate(
+            model="command-r",
+            prompt=prompt,
+            max_tokens=50,
+            temperature=0.8
+        )
+        guess = response.generations[0].text.strip()
+
+        if guess:
+            await ctx.send(f"🎯 I think you're thinking of: {guess}")
+        else:
+            await ctx.send("❌ I couldn’t make a good guess. Try rephrasing it!")
     except Exception as e:
-        print(f"Error in !wutguess: {e}")
-        await ctx.send("⚠️ Couldn't guess the song. Try a different hint!")
+        print(f"Cohere API error: {e}")
+        await ctx.send("⚠️ Something went wrong while guessing. Please try again later!")
 
 bot.run(DISCORD_TOKEN)

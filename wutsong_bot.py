@@ -42,13 +42,17 @@ def get_lyrics_snippet(artist, title):
     print(f"Genius song URL: {song_url}")
     lyrics_page = requests.get(song_url)
     soup = BeautifulSoup(lyrics_page.text, "html.parser")
-    lyrics_div = soup.find("div", class_="lyrics") or soup.find("div", class_="Lyrics__Root")
 
-    if lyrics_div:
-        return lyrics_div.get_text(strip=True)
-    else:
-        print("Lyrics div not found on Genius page.")
+    # This targets all lyrics containers used in modern Genius pages
+    lyrics_blocks = soup.select("div[class^='Lyrics__Container']")
+
+    if not lyrics_blocks:
+        print("No lyrics containers found.")
         return None
+
+    # Combine all found blocks into one string
+    lyrics = "\n".join(block.get_text(strip=True, separator="\n") for block in lyrics_blocks)
+    return lyrics
 
 @bot.command(name="wutsong")
 async def wutsong(ctx, *, query):

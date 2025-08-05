@@ -30,13 +30,16 @@ def get_lyrics_snippet(artist, title):
     response = requests.get(search_url, params=params, headers=headers)
 
     if response.status_code != 200:
+        print(f"Genius API error: {response.status_code}")
         return None
 
     hits = response.json()["response"]["hits"]
     if not hits:
+        print("No Genius search results.")
         return None
 
     song_url = hits[0]["result"]["url"]
+    print(f"Genius song URL: {song_url}")
     lyrics_page = requests.get(song_url)
     soup = BeautifulSoup(lyrics_page.text, "html.parser")
     lyrics_div = soup.find("div", class_="lyrics") or soup.find("div", class_="Lyrics__Root")
@@ -44,6 +47,7 @@ def get_lyrics_snippet(artist, title):
     if lyrics_div:
         return lyrics_div.get_text(strip=True)
     else:
+        print("Lyrics div not found on Genius page.")
         return None
 
 @bot.command(name="wutsong")
@@ -108,6 +112,8 @@ async def wutsong(ctx, *, query):
 async def wutlyrics(ctx, *, query=None):
     await ctx.trigger_typing()
     try:
+        await ctx.send("🔍 Searching for lyrics...")
+
         if not query:
             if ctx.author.id in user_last_song:
                 title, artist = user_last_song[ctx.author.id]
@@ -120,7 +126,9 @@ async def wutlyrics(ctx, *, query=None):
             else:
                 artist, title = "", query
 
+        print(f"Searching Genius for artist: '{artist}', title: '{title}'")
         lyrics = get_lyrics_snippet(artist, title)
+
         if not lyrics:
             await ctx.send("❌ Could not find lyrics.")
             return
@@ -133,6 +141,7 @@ async def wutlyrics(ctx, *, query=None):
             await ctx.send(f"📝 **Lyrics for:** `{title}`\n\n{lyrics}")
 
     except Exception as e:
+        print(f"Error in !wutlyrics: {e}")
         await ctx.send(f"⚠️ Error getting lyrics: {str(e)}")
 
 bot.run(DISCORD_TOKEN)

@@ -1,39 +1,58 @@
 import discord
 from discord.ext import commands
 import requests
-import urllib.parse
-import hashlib
 import os
 from dotenv import load_dotenv
+from bs4 import BeautifulSoup
 
 load_dotenv()
 
-# Enable privileged intents (for message content)
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+GENIUS_TOKEN = os.getenv("GENIUS_TOKEN")
+
 intents = discord.Intents.default()
 intents.message_content = True
-
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Simple cache using a dictionary
-song_cache = {}
-
-# Helper function to generate a cache key
-def make_cache_key(query: str):
-    return hashlib.md5(query.lower().encode()).hexdigest()
+# Cache and user tracking
+db_cache = {}
+user_last_song = {}
 
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
 
+# Function to get lyrics snippet from Genius
+def get_lyrics_snippet(artist, title):
+    headers = {"Authorization": f"Bearer {GENIUS_TOKEN}"}
+    search_url = "https://api.genius.com/search"
+    params = {"q": f"{title} {artist}"}
+    response = requests.get(search_url, params=params, headers=headers)
+
+    if response.status_code != 200:
+        return None
+
+    hits = response.json()["response"]["hits"]
+    if not hits:
+        return None
+
+    song_url = hits[0]["result"]["url"]
+    lyrics_page = requests.get(song_url)
+    soup = BeautifulSoup(lyrics_page.text, "html.parser")
+    lyrics_div = soup.find("div", class_="lyrics") or soup.find("div", class_="Lyrics__Root")
+
+    if lyrics_div:
+        return lyrics_div.get_text(strip=True)
+    else:
+        return None
+
 @bot.command(name="wutsong")
 async def wutsong(ctx, *, query):
-    key = make_cache_key(query)
+    key = query.lower()
 
-    if key in song_cache:
-        print(f"📁 Cache hit for: {query}")
-        result = song_cache[key]
+    if key in db_cache:
+        result = db_cache[key]
     else:
-        print(f"🌐 Searching for: {query}")
         url = "https://itunes.apple.com/search"
         params = {
             "term": query,
@@ -48,27 +67,25 @@ async def wutsong(ctx, *, query):
             return
 
         result = data["results"][0]
-        song_cache[key] = result
+        db_cache[key] = result
 
-    # Extract song info
-    track_name = result.get("trackName", "Unknown")
-    artist_name = result.get("artistName", "Unknown")
-    album_name = result.get("collectionName", "Unknown")
+    track_name = result.get("trackName")
+    artist_name = result.get("artistName")
+    album_name = result.get("collectionName")
     preview_url = result.get("previewUrl")
     track_view_url = result.get("trackViewUrl")
     artwork = result.get("artworkUrl100", "").replace("100x100bb", "512x512bb")
 
-    # Extra links (search on YouTube/Spotify)
-    youtube_query = urllib.parse.quote_plus(f"{track_name} {artist_name}")
-    spotify_query = urllib.parse.quote_plus(f"{track_name} {artist_name}")
-    youtube_url = f"https://www.youtube.com/results?search_query={youtube_query}"
-    spotify_url = f"https://open.spotify.com/search/{spotify_query}"
+    # Store last searched song for user
+    user_last_song[ctx.author.id] = (track_name, artist_name)
 
-    # Build embed
+    # Get lyrics snippet
+    lyrics_snippet = get_lyrics_snippet(artist_name, track_name)
+
     embed = discord.Embed(
         title=track_name,
         url=track_view_url,
-        description=f"🎤 **{artist_name}**\n💿 *{album_name}*",
+        description=f"🎤 {artist_name}\n💿 {album_name}",
         color=0x1DB954
     )
     embed.set_thumbnail(url=artwork)
@@ -76,11 +93,46 @@ async def wutsong(ctx, *, query):
     if preview_url:
         embed.add_field(name="▶️ Preview", value=f"[Listen]({preview_url})", inline=False)
 
-    embed.add_field(name="🔗 YouTube", value=f"[Search]({youtube_url})", inline=True)
-    embed.add_field(name="🔗 Spotify", value=f"[Search]({spotify_url})", inline=True)
+    youtube_query = requests.utils.quote(f"{track_name} {artist_name}")
+    spotify_query = youtube_query
+
+    embed.add_field(name="🔗 YouTube", value=f"[Search](https://www.youtube.com/results?search_query={youtube_query})", inline=True)
+    embed.add_field(name="🔗 Spotify", value=f"[Search](https://open.spotify.com/search/{spotify_query})", inline=True)
+
+    if lyrics_snippet:
+        embed.add_field(name="📝 Lyrics (snippet)", value=f"> {lyrics_snippet[:200]}...", inline=False)
 
     await ctx.send(embed=embed)
-    
 
-# Replace 'YOUR_BOT_TOKEN' with your actual Discord bot token
-bot.run(os.getenv("DISCORD_TOKEN"))
+@bot.command(name="wutlyrics")
+async def wutlyrics(ctx, *, query=None):
+    await ctx.trigger_typing()
+    try:
+        if not query:
+            if ctx.author.id in user_last_song:
+                title, artist = user_last_song[ctx.author.id]
+            else:
+                await ctx.send("❗ Please specify a song name or use `!wutsong` first.")
+                return
+        else:
+            if " - " in query:
+                artist, title = query.split(" - ", 1)
+            else:
+                artist, title = "", query
+
+        lyrics = get_lyrics_snippet(artist, title)
+        if not lyrics:
+            await ctx.send("❌ Could not find lyrics.")
+            return
+
+        if len(lyrics) > 1900:
+            with open("lyrics.txt", "w", encoding="utf-8") as f:
+                f.write(lyrics)
+            await ctx.send("📄 Lyrics are too long for chat. See attached file:", file=discord.File("lyrics.txt"))
+        else:
+            await ctx.send(f"📝 **Lyrics for:** `{title}`\n\n{lyrics}")
+
+    except Exception as e:
+        await ctx.send(f"⚠️ Error getting lyrics: {str(e)}")
+
+bot.run(DISCORD_TOKEN)

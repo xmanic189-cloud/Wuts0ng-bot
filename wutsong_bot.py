@@ -4,11 +4,15 @@ import requests
 import os
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup
+import openai
 
 load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 GENIUS_TOKEN = os.getenv("GENIUS_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+openai.api_key = OPENAI_API_KEY
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -43,14 +47,12 @@ def get_lyrics_snippet(artist, title):
     lyrics_page = requests.get(song_url)
     soup = BeautifulSoup(lyrics_page.text, "html.parser")
 
-    # This targets all lyrics containers used in modern Genius pages
     lyrics_blocks = soup.select("div[class^='Lyrics__Container']")
 
     if not lyrics_blocks:
         print("No lyrics containers found.")
         return None
 
-    # Combine all found blocks into one string
     lyrics = "\n".join(block.get_text(strip=True, separator="\n") for block in lyrics_blocks)
     return lyrics
 
@@ -84,10 +86,8 @@ async def wutsong(ctx, *, query):
     track_view_url = result.get("trackViewUrl")
     artwork = result.get("artworkUrl100", "").replace("100x100bb", "512x512bb")
 
-    # Store last searched song for user
     user_last_song[ctx.author.id] = (track_name, artist_name)
 
-    # Get lyrics snippet
     lyrics_snippet = get_lyrics_snippet(artist_name, track_name)
 
     embed = discord.Embed(
@@ -147,5 +147,24 @@ async def wutlyrics(ctx, *, query=None):
         except Exception as e:
             print(f"Error in !wutlyrics: {e}")
             await ctx.send(f"⚠️ Error getting lyrics: {str(e)}")
+
+@bot.command(name="wutguess")
+async def wutguess(ctx, *, hint):
+    await ctx.send("🧠 Thinking really hard...")
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a music expert. Given a vague hint or lyric, guess the most likely song name and artist."},
+                {"role": "user", "content": hint}
+            ],
+            max_tokens=100
+        )
+        guess = response.choices[0].message.content.strip()
+        await ctx.send(f"🎯 I think you're thinking of:
+{guess}")
+    except Exception as e:
+        print(f"Error in !wutguess: {e}")
+        await ctx.send("⚠️ Couldn't guess the song. Try a different hint!")
 
 bot.run(DISCORD_TOKEN)

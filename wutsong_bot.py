@@ -114,34 +114,36 @@ async def wutlyrics(ctx, *, query=None):
         try:
             await ctx.send("🔍 Searching for lyrics...")
 
-        if not query:
-            if ctx.author.id in user_last_song:
-                title, artist = user_last_song[ctx.author.id]
+            if not query:
+                if ctx.author.id in user_last_song:
+                    title, artist = user_last_song[ctx.author.id]
+                else:
+                    await ctx.send("❗ Please specify a song name or use `!wutsong` first.")
+                    return
             else:
-                await ctx.send("❗ Please specify a song name or use `!wutsong` first.")
+                if " - " in query:
+                    artist, title = query.split(" - ", 1)
+                else:
+                    artist, title = "", query
+
+            print(f"Searching Genius for artist: '{artist}', title: '{title}'")
+            lyrics = get_lyrics_snippet(artist, title)
+
+            if not lyrics:
+                await ctx.send("❌ Could not find lyrics.")
                 return
-        else:
-            if " - " in query:
-                artist, title = query.split(" - ", 1)
+
+            if len(lyrics) > 1900:
+                with open("lyrics.txt", "w", encoding="utf-8") as f:
+                    f.write(lyrics)
+                await ctx.send("📄 Lyrics are too long for chat. See attached file:", file=discord.File("lyrics.txt"))
             else:
-                artist, title = "", query
+                await ctx.send(f"📝 **Lyrics for:** `{title}`
 
-        print(f"Searching Genius for artist: '{artist}', title: '{title}'")
-        lyrics = get_lyrics_snippet(artist, title)
+{lyrics}")
 
-        if not lyrics:
-            await ctx.send("❌ Could not find lyrics.")
-            return
-
-        if len(lyrics) > 1900:
-            with open("lyrics.txt", "w", encoding="utf-8") as f:
-                f.write(lyrics)
-            await ctx.send("📄 Lyrics are too long for chat. See attached file:", file=discord.File("lyrics.txt"))
-        else:
-            await ctx.send(f"📝 **Lyrics for:** `{title}`\n\n{lyrics}")
-
-    except Exception as e:
-        print(f"Error in !wutlyrics: {e}")
-        await ctx.send(f"⚠️ Error getting lyrics: {str(e)}")
+        except Exception as e:
+            print(f"Error in !wutlyrics: {e}")
+            await ctx.send(f"⚠️ Error getting lyrics: {str(e)}")
 
 bot.run(DISCORD_TOKEN)

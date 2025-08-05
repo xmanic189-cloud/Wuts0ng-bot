@@ -138,11 +138,7 @@ async def wutlyrics(ctx, *, query=None):
                     f.write(lyrics)
                 await ctx.send("📄 Lyrics are too long for chat. See attached file:", file=discord.File("lyrics.txt"))
             else:
-                await ctx.send(f"📝 **Lyrics for:** `{title}`
-
-{lyrics}")
-
-{lyrics}"){lyrics}"){lyrics}")
+                await ctx.send(f"📝 **Lyrics for:** `{title}`\n\n{lyrics}")
 
         except Exception as e:
             print(f"Error in !wutlyrics: {e}")

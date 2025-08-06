@@ -174,4 +174,8 @@ async def wutguess(ctx, *, hint):
         print(f"Cohere API error: {e}")
         await ctx.send("⚠️ Something went wrong while guessing. Please try again later!")
 
+
+from keep_alive import keep_alive
+
+keep_alive()
 bot.run(DISCORD_TOKEN)
